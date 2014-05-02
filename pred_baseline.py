@@ -18,6 +18,12 @@ if __name__ == '__main__':
                             choices=[1,2,3],
                             help='Dataset id')
 
+        parser.add_argument('-full', 
+                            action='store_true',
+                            default=False,
+                            help='Whether to use original training dataset or only a small sub-set of the original dataset.')
+
+
         if len(sys.argv) == 1:
             parser.print_help()
             sys.exit(0)
@@ -29,16 +35,20 @@ if __name__ == '__main__':
             n_features = 253659
         elif args.id == 2:
             n_features = 200
+
+	subset = ""
+	if args.full == False:
+		subset = "_1500"
         
-        fname_trn = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "trn"))
-        fname_vld = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "vld"))
-        fname_tst = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "tst"))
+        fname_trn = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "trn"))
+        fname_vld = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "vld"))
+        fname_tst = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "tst"))
 
-        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "vld"))
-        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "tst"))
+        fname_vld_lbl = os.path.join(args.d, "dt%d%s.%s.lbl" % (args.id, subset, "vld"))
+        fname_tst_lbl = os.path.join(args.d, "dt%d%s.%s.lbl" % (args.id, subset, "tst"))
 
-        fname_vld_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "vld"))
-        fname_tst_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "tst"))
+        fname_vld_pred = os.path.join(args.d, "dt%d%s.%s.pred" % (args.id, subset, "vld"))
+        fname_tst_pred = os.path.join(args.d, "dt%d%s.%s.pred" % (args.id, subset, "tst"))
         
         for fn in (fname_trn, fname_vld, fname_tst):
             if not os.path.isfile(fn):

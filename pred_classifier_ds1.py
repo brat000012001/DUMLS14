@@ -1,8 +1,6 @@
 import argparse
 import sys, os
 
-import pylab as pl
-
 import numpy as np
 from numpy import histogram
 #from scipy.stats import itemfreq
@@ -13,67 +11,79 @@ from sklearn.grid_search import ParameterGrid
 from sklearn.svm import LinearSVC, SVC, SVR
 #from sklearn.manifold import Isomap
 from sklearn.metrics import mean_squared_error, accuracy_score
-from sklearn.feature_selection import SelectKBest, chi2
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.feature_selection import SelectKBest, SelectPercentile, chi2
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, AdaBoostClassifier
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multiclass import OneVsOneClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.decomposition import SparsePCA
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.decomposition import SparsePCA, PCA
 ## peter LDA requires dense matrix
 #from sklearn.lda import LDA
 from sklearn.decomposition import TruncatedSVD
 from sklearn.linear_model import SGDClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn import grid_search
+from sklearn.feature_selection import RFE
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.multiclass import OutputCodeClassifier
+from sklearn.ensemble import ExtraTreesClassifier
 
-class MyGaussianNB:
-	def __init__(self, **kwargs):
-		self.pipeline = Pipeline([
-			("feature_selection", LinearSVC(penalty="l2",dual=False,tol=1e-3)),
-			("classification", GaussianNB())
-		])		
-
-	def fit(self, x, y):
-		return self.pipeline.fit(x, y)
-
-	def predict(self, x):
-		return self.pipeline.predict(x)
-
-#
-# The training data must be in dense matrix format
-#
-class MyEnsemble:
-	def __init__(self, **kwargs):
-		self.pipeline = Pipeline([
-			("feature_selection", LinearSVC(penalty="l2",dual=False,tol=1e-3)),
-			("classification", GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1, random_state=0))
-		])		
-
-	def fit(self, x, y):
-		return self.pipeline.fit(x, y)
-
-	def predict(self, x):
-		return self.pipeline.predict(x)
-
-
-class MySGDClassifier:
+class MyPipeline:
 	def __init__(self, **kwargs):
 
-		#self.dict = dict()
-		#for key,value in kwargs.iteritems():
-		#	self.dict[key] = value
+		k = 10
+		self.dict = dict()
+		for key,value in kwargs.iteritems():
+			if key != 'k':
+				self.dict[key] = value
+			else:
+				k = value
 
-		self.pipeline = Pipeline(
+		#self.estimator = RFE(LinearSVC(),step=1000,estimator_params=self.dict)
+		
+		self.estimator = Pipeline(
 		[
-			#("classification", LinearSVC(**kwargs))
-			("classification", SGDClassifier(**kwargs))
+			#("feature_selection", SelectKBest(chi2,k=k)),
+			#("feature_selection", TruncatedSVD(n_components=100,algorithm="arpack",random_state=0,tol=0)),
+			#("outputcode", OutputCodeClassifier(LinearSVC(**self.dict),code_size=4,random_state=0))
+			#("dimensionality_reduction",TruncatedSVD(n_components=100)),
+			#("feature_selection", LinearSVC(penalty="l1",dual=False,C=1)),
+			("svc", SVC(**self.dict))
+			#("sgd", SGDClassifier(**self.dict))
 		])
+		
 
 	def fit(self, x, y):
-	
-		return self.pipeline.fit(x,y)
+		return self.estimator.fit(x,y)
 
 	def predict(self,x):
-		return self.pipeline.predict(x)
+		return self.estimator.predict(x)
+
+
+def train(args, grid_obj, cls_obj, metric_obj, data_trn, lbl_trn, data_vld, lbl_vld):
+
+        best_param = None
+        best_score = None
+        best_svc = None
+
+        for one_param in ParameterGrid(grid_obj):
+
+		try:
+			cls = cls_obj(**one_param)
+			cls.fit(data_trn, lbl_trn)
+			one_score = metric_obj(lbl_vld, cls.predict(data_vld))
+
+			print ("param=%s, score=%.6f" % (repr(one_param),one_score))
+            
+			if ( best_score is None or (args.id < 3 and best_score < one_score) or (args.id == 3 and best_score > one_score) ):
+				best_param = one_param
+				best_score = one_score
+				best_svc = cls
+		except KeyboardInterrupt:
+			raise
+		except Exception as e:
+			print "Exception due to invalid parameter combination: {}".format(e)
+	return (best_param, best_score, best_svc)
 
 
 if __name__ == '__main__':
@@ -88,16 +98,37 @@ if __name__ == '__main__':
         parser.add_argument('-id', type=int,
                             default=1,
                             choices=[1,2,3],
-                            help='Classifier id')
+                            help='Dataset id')
 
         parser.add_argument('-cid', type=int,
                             default=1,
-                            choices=[1,2,3],
+                            choices=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20],
                             help='Classifier id')
 
-        parser.add_argument('-plotsvd', type=bool,
+        parser.add_argument('-scale', 
+                            action='store_true',
+                            default=False,
+                            help='Classifier id')
+
+        parser.add_argument('-reduce', 
+                            action='store_true',
+                            default=False,
+                            help='Whether to reduce dimensionality of the input data.')
+
+        parser.add_argument('-plotsvd',
+                            action='store_true',		
                             default=False,
                             help='Visualizes SVD-reprojected dataset #1')
+
+        parser.add_argument('-full', 
+                            action='store_true',
+                            default=False,
+                            help='Whether to use original training dataset or only a small sub-set of the original dataset.')
+
+        parser.add_argument('-verbose', 
+                            action='store_true',
+                            default=False,
+                            help='Verbose output.')
 
         if len(sys.argv) == 1:
             parser.print_help()
@@ -107,16 +138,19 @@ if __name__ == '__main__':
 
 	args.id = 1 # override whatever user's input since we only be experimenting with dataset #1 here...
         n_features = 253659
-        
-        fname_trn = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "trn"))
-        fname_vld = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "vld"))
-        fname_tst = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "tst"))
 
-        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "vld"))
-        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "tst"))
+	subset = ""
+	if args.full == False:
+		subset = "_1500"
+        fname_trn = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "trn"))
+        fname_vld = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "vld"))
+        fname_tst = os.path.join(args.d, "dt%d%s.%s.svm" % (args.id, subset, "tst"))
 
-        fname_vld_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "vld"))
-        fname_tst_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "tst"))
+        fname_vld_lbl = os.path.join(args.d, "dt%d%s.%s.lbl" % (args.id, subset, "vld"))
+        fname_tst_lbl = os.path.join(args.d, "dt%d%s.%s.lbl" % (args.id, subset, "tst"))
+
+        fname_vld_pred = os.path.join(args.d, "dt%d%s.%s.pred" % (args.id, subset, "vld"))
+        fname_tst_pred = os.path.join(args.d, "dt%d%s.%s.pred" % (args.id, subset, "tst"))
         
         for fn in (fname_trn, fname_vld, fname_tst):
             if not os.path.isfile(fn):
@@ -139,73 +173,163 @@ if __name__ == '__main__':
 	#print np.searchsorted(lbl_trn, '4.')
 	#print np.searchsorted(lbl_trn, '5.')
 
-	# Plot the principal components using SVD
-	if args.plotsvd == True:
-		svd = TruncatedSVD(n_components=len(set(lbl_trn)))
-		X_r2 = svd.fit(data_trn, lbl_trn).transform(data_trn)
-		pl.figure()
-		for c, i, target_name in zip("rgb", [1, 2, 3, 4, 5], set(lbl_trn)):
-			pl.scatter(X_r2[lbl_trn == i, 0], X_r2[lbl_trn == i, 1], c=c, label=target_name)
-		pl.legend()
-		pl.title('SVD of Dataset#1 dataset')
-		pl.show()
+	# Check if the data needs to be re-scaled
+	if args.scale:
+		print "Rescaling the input data, please wait..."
+		scaler = StandardScaler()
+		data_trn = scaler.fit_transform(data_trn)
+		data_vld = scaler.fit_transform(data_vld)
+		data_tst = scaler.fit_transform(data_tst)
 
+
+	# Plot the principal components using SVD
+	if args.plotsvd:
+		try:
+			import pylab as pl
+
+
+			# 2 eigenvectors for the sake of 2D visualization
+			svd = TruncatedSVD(n_components=2)
+			X_r2 = svd.fit(data_trn, lbl_trn).transform(data_trn)
+			pl.figure()
+			for c, i, target_name in zip("rgb", [1, 2, 3, 4, 5], set(lbl_trn)):
+				pl.scatter(X_r2[lbl_trn == i, 0], X_r2[lbl_trn == i, 1], c=c, label=target_name)
+			pl.legend()
+			pl.title('SVD of Dataset#1 dataset')
+			pl.show()
+
+			pl.figure()
+
+			at_hist, xedges, yedges = np.histogram2d(data_trn, lbl_trn, bins=500)
+			extent = [yedges[0], yedges[-1], xedges[0], xedges[-1]]
+
+			fig = mpl.pylab.figure()
+			at_plot = fig.add_subplot(111)
+			at_plot.imshow(at_hist, extent=extent, origin='lower', aspect='auto')
+
+			pl.show()
+
+		except Exception as e:
+			print 'Check if pylab is installed. %s' % (str(e))
 
         
         ### perform grid search using validation samples
         dt1_grid = [{'loss': ['modified_huber', 
 			'squared_hinge'],
 			'penalty':['l2'],
-			'class_weight':['auto',None],
-			'alpha':[0.00025],
-			'n_iter':[5,10,15,20,25,30,50,100]}]
+			#'class_weight':['auto',None],
+			'alpha':[0.00025,0.0001, 0.00007, 0.00005, 0.00002, 0.00001],
+			'n_iter':[5,10,15,20,25,30,50,100,1000]}]
 
 
-        dt2_grid = [{'C': [1, 10, 50, 100],
-			'loss':['l1','l2'],
-			'penalty':['l1','l2'],
-			'dual':[True,False],
-			'tol':[0.0001,0.001,0.01],
-			'multi_class':['ovr','crammer_singer'],
-			'fit_intercept':[True,False],
-			'intercept_scaling':[0.01,0.1,1]}]
+        dt2_grid = [{'C': [1, 10, 15, 20, 40, 50, 100]}]
 
-        dt3_grid = [{'kernel': ['rbf'], 'C': [1.0, 100.0, 10000.0],
+	dt3_grid = [
+			{'loss': ['l2'], 
+			'C': [10], 
+			'intercept_scaling': [1], 
+			'fit_intercept': [True], 
+			'penalty': ['l2'], 
+			'dual': [True],
+			'tol': [0.00001,0.0001,0.001,0.01]}]
+	
+        dt4_grid = [{'C': [0.1,1,10,100,1000,10000]
+			#'degree':['l2'],
+			#'alpha':[0.00025,0.0001, 0.00007, 0.00005, 0.00002, 0.00001],
+			#'n_iter':[5,10,15,20,25,30,50,100,1000],
+			#,'k':[2,10,50,100,200]
+			}]
+	'''
+        dt4_grid = [{'loss': ['modified_huber', 
+			'squared_hinge'],
+			'penalty':['l2'],
+			#'class_weight':['auto',None],
+			'alpha':[0.0001],
+			'n_iter':[5,10,15,20,25,30,50,100,1000]}]
+	'''
+
+        dt5_grid = [{'kernel': ['linear','rbf'], 'C': [1.0, 100.0, 10000.0],
                      'gamma': [0.1, 1.0, 10.0]}]
 
-        grids = (None, dt1_grid, dt2_grid, dt3_grid)
-        classifiers = (None, MySGDClassifier, LinearSVC, SVR)
-        metrics = (None, accuracy_score, accuracy_score, mean_squared_error)
-        str_formats = (None, "%d", "%d", "%.6f")
+        dt6_grid = [{}]
+
+        dt7_grid = [{'kernel': ['poly'],
+			'degree':[2,3,4,5],
+			#'gamma':[0.0,0.01,0.1],
+			#'coef0':[0.0,0.01,0.1],
+			#'tol':[1e-3,1e-4,1e-5]
+			#,'k':[2,10,50,100,200]
+	}]
+
+        dt8_grid = [{'n_neighbors':[5,10],'weight':['uniform','distance'],'algorithm':['auto','ball_tree','kd_tree','brute']}]
+
+        grids = (None, dt1_grid, dt2_grid, dt3_grid, dt4_grid, dt5_grid, dt6_grid, dt7_grid, dt8_grid)
+	#               0        1             2          3          4         5         6          7             8
+        classifiers = (None, SGDClassifier, LinearSVC, LinearSVC, MyPipeline, SVC, GaussianNB, MyPipeline, KNeighborsClassifier)
+        metrics = (None, accuracy_score, accuracy_score, accuracy_score, accuracy_score, accuracy_score, accuracy_score, accuracy_score, accuracy_score, accuracy_score, mean_squared_error)
+        str_formats = (None, "%d", "%d", "%d","%d","%d","%d","%d","%d","%d","%d","%d","%d","%d","%d","%d","%d","%.6f")
         #LinearSVC(penalty='l2', loss='l2', dual=True, tol=0.0001, C=1.0,
 
         grid_obj=grids[args.cid]
         cls_obj=classifiers[args.cid]
         metric_obj=metrics[args.cid]
+
+	if args.verbose:
+		grid_obj[0]['verbose'] = [True]
         
         best_param = None
         best_score = None
         best_svc = None
-        
-        for one_param in ParameterGrid(grid_obj):
-		try:
-			cls = cls_obj(**one_param)
-			cls.fit(data_trn, lbl_trn)
-			one_score = metric_obj(lbl_vld, cls.predict(data_vld))
+	best_n_components = None
 
-			print ("param=%s, score=%.6f" % (repr(one_param),one_score))
-            
-			if ( best_score is None or (args.id < 3 and best_score < one_score) or (args.id == 3 and best_score > one_score) ):
-				best_param = one_param
-				best_score = one_score
-				best_svc = cls
-		except KeyboardInterrupt:
-			raise
-		except:
-			print "Exception due to invalid parameter combination: {}".format(str(sys.exc_info()[0]))
-            
-        pred_vld = best_svc.predict(data_vld)
-        pred_tst = best_svc.predict(data_tst)
+	print "\nClassifier:{}".format(repr(cls_obj))
+	print "Metrics: {}".format(repr(metric_obj))        
+	print "Grid:{}\n\n".format(repr(grid_obj))
+	print "Training dataset: {}".format(fname_trn)
+	print "Validation dataset: {}".format(fname_vld)
+	print "Testing dataset: {}".format(fname_tst)
+
+	data_trn_ = data_trn
+	data_vld_ = data_vld
+	data_tst_ = data_tst
+
+
+	cls_obj = MultinomialNB
+	grid_obj = [{}]
+
+	if args.reduce:
+			
+		n_components = 200
+		'''
+		svd = TruncatedSVD(n_components=n_components,algorithm="arpack",tol=0)
+		# Perform dimensionality reduction
+		svd.fit(data_trn)
+		print "Reducing dimensionality of the training data to {} best vectors, please wait...".format(n_components)
+		data_trn_ = svd.transform(data_trn)
+		print "Reducing dimensionality of the validation data to {} best vectors, please wait...".format(n_components)
+		data_vld_ = svd.transform(data_vld)
+		print "Reducing dimensionality of the test data to {} best vectors, please wait...".format(n_components)
+		data_tst_ = svd.transform(data_tst)
+		'''
+
+		pca = PCA(200)
+		pca.fit(data_trn_)
+		data_trn_ = pca.transform(data_trn_)
+		data_vld_ = pca.transform(data_vld_)
+		data_tst_ = pca.transform(data_tst_)
+
+		grid_obj = [{'C':[1,10,100,1000,10000,100000,1000000],'cache_size':[200],'gamma':[0.0001,0.001], 'tol':[0.001],'probability':[False],'kernel':['rbf']}] # ,'degree':[3,5,10,100]
+		cls_obj = SVC
+
+		print "Commencing the training/validation phase..."
+		best_param, best_score, best_svc = train(args, grid_obj, cls_obj, metric_obj, data_trn_, lbl_trn, data_vld_, lbl_vld)
+	else:
+		print "Commencing the training/validation phase..."
+		best_param, best_score, best_svc = train(args, grid_obj, cls_obj, metric_obj, data_trn_, lbl_trn, data_vld_, lbl_vld)
+
+		  
+        pred_vld = best_svc.predict(data_vld_)
+        pred_tst = best_svc.predict(data_tst_)
 
 	print "\n\nBest configuration: {}".format(repr(best_param))        
         print ("Best score for vld: %.6f" % (metric_obj(lbl_vld, pred_vld),))
@@ -213,7 +337,6 @@ if __name__ == '__main__':
         
         np.savetxt(fname_vld_pred, pred_vld, delimiter='\n', fmt=str_formats[args.id])
         np.savetxt(fname_tst_pred, pred_tst, delimiter='\n', fmt=str_formats[args.id])
-        
         np.savetxt(fname_vld_lbl, lbl_vld, delimiter='\n', fmt=str_formats[args.id])
         np.savetxt(fname_tst_lbl, lbl_tst, delimiter='\n', fmt=str_formats[args.id])
 
