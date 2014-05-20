@@ -1,0 +1,7 @@
+To train a dataset #1 classifier:
+
+> python pred_final_ds1.py -d cs613_grcomp_s14/ -id 1
+
+To train a dataset #2 classifier:
+
+> python pred_final_ds3.py -d cs613_grcomp_s14/ -id 3

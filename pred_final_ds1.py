@@ -117,11 +117,11 @@ if __name__ == '__main__':
         fname_vld = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "vld"))
         fname_tst = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "tst"))
 
-        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.final.lbl" % (args.id, "vld"))
-        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.final.lbl" % (args.id, "tst"))
+        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "vld"))
+        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "tst"))
 
-        fname_vld_pred = os.path.join(args.d, "dt%d.%s.final.pred" % (args.id, "vld"))
-        fname_tst_pred = os.path.join(args.d, "dt%d.%s.final.pred" % (args.id, "tst"))
+        fname_vld_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "vld"))
+        fname_tst_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "tst"))
         
         for fn in (fname_trn, fname_vld, fname_tst):
             if not os.path.isfile(fn):
