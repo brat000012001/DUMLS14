@@ -36,41 +36,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 def classify(data_trn,lbl_trn,data_vld,lbl_vld,data_tst,lbl_tst):
 
-	'''
-	TruncatedSVD(algorithm=randomized, n_components=250, n_iterations=5, random_state=None, tol=0.0)+<function normalize at 0x8f8e144>,
-	param={'svc__class_weight': {1: 1, 2: 1, 3: 42.0, 4: 3.5, 5: 3.5}, 
-	'svc__C': 1.0, 
-	'svc__tol': 0.001, 
-	'feature_selection__penalty': 'l1',
-	'svc__kernel': 'rbf', 
-	'feature_selection__dual': False, 
-	'feature_selection__tol': 0.001, 
-	'svc__probability': False, 
-	'svc__gamma': 1.0, 
-	'feature_selection__C': 0.1, 
-	'svc__cache_size': 1024}, 
-	score=0.547800
-	'''
-
-	'''
-	Reduce the dimensionality of the dataset
-	'''
-	svd = TruncatedSVD(n_components=252)
-	svd.fit(data_trn,lbl_trn)
-	data_trn = normalize(svd.transform(data_trn))
-	data_vld = normalize(svd.transform(data_vld))
-	data_tst = normalize(svd.transform(data_tst))
+	data_trn = normalize(data_trn,copy=False)
+	data_vld = normalize(data_vld,copy=False)
+	data_tst = normalize(data_tst,copy=False)
 
 	# accuracy metric
-	metric_obj = accuracy_score
+	metric_obj = mean_squared_error
 	'''
 	Train our model to predict labels for the dataset #1
 	'''
-	parameters = {'svc__kernel': 'rbf', 'svc__C': 1.0, 'svc__probability': False, 'svc__tol': 0.001, 'svc__cache_size': 1024, 'svc__gamma': 1.0, 'svc__class_weight': {1: 1, 2: 1, 3: 42.0, 4: 3.5, 5: 3.5},
-			'feature_selection__penalty':'l1','feature_selection__dual':False,'feature_selection__tol':0.001,'feature_selection__C':0.1}
+	parameters = {'svr__gamma': 1.5, 'svr__probability': False, 'svr__epsilon': 0.4, 'svr__C': 1, 'svr__kernel': 'rbf'}
 	cls = Pipeline([
-			('feature_selection',LinearSVC()),
-			('svc', SVC())
+			#('feature_selection',LinearSVC()),
+			('svr', SVR())
 			])
 	cls.set_params(**parameters)
 
@@ -95,10 +73,9 @@ if __name__ == '__main__':
                             help='Directory with datasets in SVMLight format')
 
         parser.add_argument('-id', type=int,
-                            default=1,
-                            choices=[1],
+                            default=3,
+                            choices=[3],
                             help='Dataset id')
-
 
         if len(sys.argv) == 1:
             parser.print_help()
@@ -113,15 +90,16 @@ if __name__ == '__main__':
 		n_features = 200	
 
 	# For datasets #2 and #3 use the entire dataset (not a subset)
+
         fname_trn = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "trn"))
         fname_vld = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "vld"))
         fname_tst = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "tst"))
 
-        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.final.lbl" % (args.id, "vld"))
-        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.final.lbl" % (args.id, "tst"))
+        fname_vld_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "vld"))
+        fname_tst_lbl = os.path.join(args.d, "dt%d.%s.lbl" % (args.id, "tst"))
 
-        fname_vld_pred = os.path.join(args.d, "dt%d.%s.final.pred" % (args.id, "vld"))
-        fname_tst_pred = os.path.join(args.d, "dt%d.%s.final.pred" % (args.id, "tst"))
+        fname_vld_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "vld"))
+        fname_tst_pred = os.path.join(args.d, "dt%d.%s.pred" % (args.id, "tst"))
         
         for fn in (fname_trn, fname_vld, fname_tst):
             if not os.path.isfile(fn):
@@ -134,7 +112,7 @@ if __name__ == '__main__':
         data_vld, lbl_vld = load_svmlight_file(fname_vld, n_features=n_features, zero_based=True)
         data_tst, lbl_tst = load_svmlight_file(fname_tst, n_features=n_features, zero_based=True)
 
-	format_obj = '%d'
+	format_obj = '%.6f'
 
 	pred_vld,pred_tst = classify(data_trn,lbl_trn,data_vld,lbl_vld,data_tst,lbl_tst)
 
