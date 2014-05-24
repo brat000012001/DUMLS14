@@ -55,18 +55,20 @@ def classify(data_trn,lbl_trn,data_vld,lbl_vld,data_tst,lbl_tst):
 	'''
 	Reduce the dimensionality of the dataset
 	'''
-	svd = TruncatedSVD(n_components=252)
+
+	#'''
+	svd = TruncatedSVD(n_components=253)
 	svd.fit(data_trn,lbl_trn)
 	data_trn = normalize(svd.transform(data_trn))
 	data_vld = normalize(svd.transform(data_vld))
 	data_tst = normalize(svd.transform(data_tst))
-
+	#'''	
 	# accuracy metric
 	metric_obj = accuracy_score
 	'''
 	Train our model to predict labels for the dataset #1
 	'''
-	parameters = {'svc__kernel': 'rbf', 'svc__C': 1.0, 'svc__probability': False, 'svc__tol': 0.001, 'svc__cache_size': 1024, 'svc__gamma': 1.0, 'svc__class_weight': {1: 1, 2: 1, 3: 42.0, 4: 3.5, 5: 3.5},
+	parameters = {'svc__kernel': 'rbf', 'svc__C': 1.0, 'svc__probability': False, 'svc__tol': 0.001, 'svc__cache_size': 1024, 'svc__gamma': 1.0, 'svc__class_weight': {1: 1, 2: 1, 3: 7.0, 4: 3.5, 5: 3.5},
 			'feature_selection__penalty':'l1','feature_selection__dual':False,'feature_selection__tol':0.001,'feature_selection__C':0.1}
 	cls = Pipeline([
 			('feature_selection',LinearSVC()),
@@ -106,11 +108,11 @@ if __name__ == '__main__':
 
         args = parser.parse_args()
 
-	n_features = 100
-        if args.id == 1:
-		n_features = 253659
-	elif args.id == 2:
-		n_features = 200	
+
+	features = [None, 253659, 200, 100]
+	#features = [None, 200, 100, 100]
+	n_features = features[args.id]
+
 
 	# For datasets #2 and #3 use the entire dataset (not a subset)
         fname_trn = os.path.join(args.d, "dt%d.%s.svm" % (args.id, "trn"))

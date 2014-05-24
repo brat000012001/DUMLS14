@@ -70,7 +70,7 @@ if __name__ == '__main__':
 	X, y = data_trn, lbl_trn
 
 	# peter ExtraTreesClassifier cannot handle sparse matrices, so we need to reduce the dimensionality first
-	svd = TruncatedSVD(175)
+	svd = TruncatedSVD(n_components=100)
 	X = svd.fit_transform(X)
 
 	# Build a forest and compute the feature importances

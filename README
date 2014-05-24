@@ -1,3 +1,14 @@
+Pre-requisites:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Run the following python script to concatenate the training datasets:
+
+> python generate_datasets.py -d cs613_grcomp_s14/ -id 1
+> python generate_datasets.py -d cs613_grcomp_s14/ -id 2
+> python generate_datasets.py -d cs613_grcomp_s14/ -id 3
+
+Training phase
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 To train a dataset #1 classifier:
 
 > python pred_final_ds1.py -d cs613_grcomp_s14/ -id 1
